@@ -1,7 +1,7 @@
 ----------------------------------------------------------------
-Tue May 08 21:13:17 EDT 2018:
-Booting Derby version The Apache Software Foundation - Apache Derby - 10.12.1.1 - (1704137): instance a816c00e-0163-4275-a739-00000c452f60 
-on database directory C:\Users\xiaohang\Desktop\BigData\project\taxi_vs_uber\metastore_db with class loader org.apache.spark.sql.hive.client.IsolatedClientLoader$$anon$1@33f17668 
+Wed May 09 16:24:49 EDT 2018:
+Booting Derby version The Apache Software Foundation - Apache Derby - 10.12.1.1 - (1704137): instance a816c00e-0163-4693-e955-0000074152c0 
+on database directory C:\Users\xiaohang\Desktop\BigData\project\taxi_vs_uber\metastore_db with class loader org.apache.spark.sql.hive.client.IsolatedClientLoader$$anon$1@561f9629 
 Loaded from file:/C:/spark/jars/derby-10.12.1.1.jar
 java.vendor=Oracle Corporation
 java.runtime.version=1.8.0_162-b12
