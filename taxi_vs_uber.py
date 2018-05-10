@@ -8,7 +8,10 @@ import matplotlib.pyplot as plt
 import datetime
 import csv
 from sklearn.linear_model import Lasso
-
+from pyspark.sql import functions as F
+from pyspark.sql.window import Window
+from scipy import stats
+import numpy as np
 
 
 def get_closest_borough(latitude,longitude,max_dist = 20):
@@ -52,10 +55,25 @@ def get_data(data, key):
     return []
 	
 	
+##########################################################################
+def get_growth(data, key):
+    sqlc = SQLContext(sc)
+
+    data = sc.parallelize(data.collect()[key][1])
+    df = sqlc.createDataFrame(data, ["date", "value"])
+    my_window = Window.partitionBy().orderBy("date")
+
+    df = df.withColumn("prev_value", F.lag(df.value).over(my_window))
+    df = df.withColumn("diff", F.when(F.isnull(((df.value - df.prev_value)/df.prev_value)*100), 0)
+                                  .otherwise((df.value - df.prev_value)/df.prev_value)*100)
+    return df.rdd.map(lambda x: x.date.encode("utf-8")).collect(), df.rdd.map(lambda x: x.diff).collect()	
+	
+	
 if __name__ == "__main__":
 	sc = SparkContext()
-	taxi_aug14 = sc.textFile('taxi2014augest.csv' , use_unicode=False).filter(lambda x: x != "").cache()
-	#uber_aug14 = sc.textFile('uber-raw-data-aug14.csv', use_unicode=False).cache()
+	spark = SQLContext(SparkContext())
+	taxi_aug14 = sc.textFile('yellow_tripdata_2014-08.csv', use_unicode=False).filter(lambda x: x != "").cache()
+	uber_aug14 = sc.textFile('uber-raw-data-aug14.csv', use_unicode=False).cache()
 	queensCenter = ((40.800760+40.542920)/2,(-73.700272-73.962616)/2)
 	brookCenter = ((40.739877+40.57042)/2,(-73.864754-74.04344)/2)
 	bronxCenter = ((40.915255+40.785743)/2,(-73.765274-73.933406)/2)
@@ -69,46 +87,69 @@ if __name__ == "__main__":
 	boroughDict["manhattan"] = manhattanCenter
 	boroughDict["staten"] = siCenter
 	# don't use index 2 in the actual database because it is 'outside_nyc'
-	lboro = ['bronx', 'brooklyn', 'queens', 'manhattan', 'staten']
-	columns = ['boro', 'days_in_month', 'number_of_pickup']
-	dic_boro = {'bronx': 0, 'brooklyn': 1, 'manhattan': 2, 'outside_nyc': 3, 'queens': 4, 'staten': 5}
-	boro = ['bronx', 'brooklyn', 'manhattan', 'outside_nyc', 'queens', 'staten']
-				
+	lboro = ['bronx', 'brooklyn', 'outside_nyc', 'queens', 'manhattan', 'staten']
 	
-	# urdd = uber_aug14.mapPartitionsWithIndex(extractUber)\
-                # .reduceByKey(lambda x, y: x+y)\
-                # .map(lambda x: ((x[0][0], datetime.datetime.strptime(x[0][1], "%m/%d/%Y").strftime("%Y-%m-%d")), x[1]))\
-                # .sortBy(lambda x:(x[0][0], x[0][1]))\
-                # .map(lambda x: (x[0][0], [(x[0][1], x[1])]))\
-                # .reduceByKey(lambda x, y: (x+y))   
+	#############################################################################
+	urdd = uber_aug14.mapPartitionsWithIndex(extractUber)\
+                .reduceByKey(lambda x, y: x+y)\
+                .map(lambda x: ((x[0][0], datetime.datetime.strptime(x[0][1], "%m/%d/%Y").strftime("%Y-%m-%d")), x[1]))\
+                .sortBy(lambda x:(x[0][0], x[0][1]))\
+                .map(lambda x: (x[0][0], [(x[0][1], x[1])]))\
+                .reduceByKey(lambda x, y: (x+y))   
 	trdd_table = taxi_aug14.mapPartitionsWithIndex(extractUber)\
                 .reduceByKey(lambda x, y: x+y)\
                 .sortBy(lambda x:(x[0][0], x[0][1]))\
                 .map(lambda x: (dic_boro[x[0][0]], int(datetime.datetime.strptime(x[0][1], "%Y-%m-%d").strftime("%d")),x[1]))
-	df_trdd = trdd_table.collect()
-	df_boro = [[],[],[],[],[],[]]
-	X = [[],[],[],[],[],[]]
-	y =[[],[],[],[],[],[]]
-	X_train=[[],[],[],[],[],[]]
-	X_test=[[],[],[],[],[],[]]
-	y_train=[[],[],[],[],[],[]] 
-	y_test=[[],[],[],[],[],[]]
-	predition=[[],[],[],[],[],[]]	
-	for i in range(6):
-		for item in df_trdd:
-			if item[0] == i:
-				df_boro[i].append(item)
-		df_boro[i] = pd.DataFrame(df_boro[i], columns=columns)
-	for i in range(6):
-		X[i] = df_boro[i][['boro', 'days_in_month']].values
-		y[i] = df_boro[i][['number_of_pickup']].values
-		X_train[i], X_test[i], y_train[i], y_test[i] = train_test_split(X[i], y[i], test_size=0.4, random_state=1)
-	lasso_r = Lasso()
-	for i in range(6):
-		lasso_r.fit(X_train[i], y_train[i])
-		predition[i] = (boro[i], lasso_r.predict(df_boro[i][['boro', 'days_in_month']].values))
-		predition[i].rdd.saveAsTextFile(boro[i])
+				
+	uvb = [[],[],[],[],[]]
+	tvb = [[],[],[],[],[]]
+	# evaluate the histogram
+	tvb[0] = list(np.histogram(get_data(trdd, 0), bins=30))
+	tvb[1] = list(np.histogram(get_data(trdd, 1), bins=30))
+	tvb[2] = list(np.histogram(get_data(trdd, 3), bins=30))
+	tvb[3] = list(np.histogram(get_data(trdd, 4), bins=30))
+	tvb[4] = list(np.histogram(get_data(trdd, 5), bins=30))
 
+	uvb[0] = list(np.histogram(get_data(urdd, 0), bins=30))
+	uvb[1] = list(np.histogram(get_data(urdd, 1), bins=30))
+	uvb[2] = list(np.histogram(get_data(urdd, 3), bins=30))
+	uvb[3] = list(np.histogram(get_data(urdd, 4), bins=30))
+	uvb[4] = list(np.histogram(get_data(urdd, 5), bins=30))
+
+	#evaluate the cumulative
+	tvb[0][0] = np.cumsum(tvb[0][0])
+	tvb[1][0] = np.cumsum(tvb[1][0])
+	tvb[2][0] = np.cumsum(tvb[2][0])
+	tvb[3][0] = np.cumsum(tvb[3][0])
+	tvb[4][0] = np.cumsum(tvb[4][0])
+
+	uvb[0][0] = np.cumsum(uvb[0][0])
+	uvb[1][0] = np.cumsum(uvb[1][0])
+	uvb[2][0] = np.cumsum(uvb[2][0])
+	uvb[3][0] = np.cumsum(uvb[3][0])
+	uvb[4][0] = np.cumsum(uvb[4][0])
 	
+	sc.parallelize(tvb).rdd.saveAsTextFile('taxi_cumulative_data')
+	sc.parallelize(uvb).rdd.saveAsTextFile('uber_cumulative_data')
 	
+	###############################################################
+    datetimes = list(i for i in range(len(get_data(urdd, i))))
 	
+	tdata = []
+	udata = []
+	for i in range(6):
+		if i != 2:
+			tdata.append(get_growth(trdd, i)[1])
+			udata.append(get_growth(urdd, i)[1])
+	sc.parallelize(tdata).rdd.saveAsTextFile('taxi_growth_data')
+	sc.parallelize(udata).rdd.saveAsTextFile('uber_growth_data')
+			
+	################################################################
+	
+	prval = []
+	for i in range(6):
+		if i != 2:
+			x = scipy.array(get_data(trdd, i))
+			y = scipy.array(get_data(urdd, i))
+			prval.append(stats.linregress(x,y))
+	sc.parallelize(prval).rdd.saveAsTextFile('pr_value_data')
