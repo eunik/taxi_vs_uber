@@ -10,18 +10,19 @@ import csv
 from sklearn.linear_model import Lasso
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
+import scipy
 from scipy import stats
 import numpy as np
 
 
 def get_closest_borough(latitude,longitude,max_dist = 20):
-    global boroughDict
-    borough_distances = {borough:great_circle(boroughDict[borough],(latitude,longitude)).miles for borough in boroughDict}
-    min_borough = min(borough_distances, key=borough_distances.get)
-    if borough_distances[min_borough] < max_dist:
-        return min_borough 
-    else:
-        return "outside_nyc"
+	global boroughDict
+	borough_distances = {borough:great_circle(boroughDict[borough],(latitude,longitude)).miles for borough in boroughDict}
+	min_borough = min(borough_distances, key=borough_distances.get)
+	if borough_distances[min_borough] < max_dist:
+		return min_borough 
+	else:
+		return "outside_nyc"
 		
 def extractTaxi(partId, records):
 	if partId==0:
@@ -32,46 +33,45 @@ def extractTaxi(partId, records):
 		yield ((boro, pickup) , 1)
 			
 def extractUber(partId, records):
-    if partId==0:
-        records.next()
-    import csv
-    reader = csv.reader(records)
-    for row in reader:
-        (pickup, boro) = (row[0].split(" ")[0],  get_closest_borough(row[1],row[2]))
-        yield ((boro, pickup), 1)
+	if partId==0:
+		records.next()
+	import csv
+	reader = csv.reader(records)
+	for row in reader:
+		(pickup, boro) = (row[0].split(" ")[0],  get_closest_borough(row[1],row[2]))
+		yield ((boro, pickup), 1)
 	# gets data given a key
 	
 def get_data(data, key):
-    # returns ALL values
-    if key == -1:
-        return data.values().map(lambda x: list(zip(*x)[1])).collect()
-    # returns ALL dates
-    if key == -2:
-        return data.values().map(lambda x: zip(*x)[0]).collect()[4]
-    data = zip(*data.collect()[key][1])[1]
-    if data:
-        return data
-    print "None found"
-    return []
+	# returns ALL values
+	if key == -1:
+		return data.values().map(lambda x: list(zip(*x)[1])).collect()
+	# returns ALL dates
+	if key == -2:
+		return data.values().map(lambda x: zip(*x)[0]).collect()[4]
+	data = zip(*data.collect()[key][1])[1]
+	if data:
+		return data
+	print "None found"
+	return []
 	
 	
 ##########################################################################
 def get_growth(data, key):
-    sqlc = SQLContext(sc)
 
-    data = sc.parallelize(data.collect()[key][1])
-    df = sqlc.createDataFrame(data, ["date", "value"])
-    my_window = Window.partitionBy().orderBy("date")
+	data = sc.parallelize(data.collect()[key][1])
+	df = sqlc.createDataFrame(data, ["date", "value"])
+	my_window = Window.partitionBy().orderBy("date")
 
-    df = df.withColumn("prev_value", F.lag(df.value).over(my_window))
-    df = df.withColumn("diff", F.when(F.isnull(((df.value - df.prev_value)/df.prev_value)*100), 0)
-                                  .otherwise((df.value - df.prev_value)/df.prev_value)*100)
-    return df.rdd.map(lambda x: x.date.encode("utf-8")).collect(), df.rdd.map(lambda x: x.diff).collect()	
+	df = df.withColumn("prev_value", F.lag(df.value).over(my_window))
+	df = df.withColumn("diff", F.when(F.isnull(((df.value - df.prev_value)/df.prev_value)*100), 0)
+								  .otherwise((df.value - df.prev_value)/df.prev_value)*100)
+	return df.rdd.map(lambda x: x.date.encode("utf-8")).collect(), df.rdd.map(lambda x: x.diff).collect()	
 	
 	
 if __name__ == "__main__":
 	sc = SparkContext()
-	spark = SQLContext(SparkContext())
+	sqlc = SQLContext(sc)
 	taxi_aug14 = sc.textFile('yellow_tripdata_2014-08.csv', use_unicode=False).filter(lambda x: x != "").cache()
 	uber_aug14 = sc.textFile('uber-raw-data-aug14.csv', use_unicode=False).cache()
 	queensCenter = ((40.800760+40.542920)/2,(-73.700272-73.962616)/2)
@@ -90,17 +90,21 @@ if __name__ == "__main__":
 	lboro = ['bronx', 'brooklyn', 'outside_nyc', 'queens', 'manhattan', 'staten']
 	
 	#############################################################################
+	trdd = taxi_aug14.mapPartitionsWithIndex(extractTaxi)\
+				.reduceByKey(lambda x, y: x+y)\
+				.sortBy(lambda x:(x[0][0], x[0][1]))\
+				.map(lambda x: (x[0][0], [(x[0][1], x[1])]))\
+				.reduceByKey(lambda x, y: (x+y))
+
+
 	urdd = uber_aug14.mapPartitionsWithIndex(extractUber)\
-                .reduceByKey(lambda x, y: x+y)\
-                .map(lambda x: ((x[0][0], datetime.datetime.strptime(x[0][1], "%m/%d/%Y").strftime("%Y-%m-%d")), x[1]))\
-                .sortBy(lambda x:(x[0][0], x[0][1]))\
-                .map(lambda x: (x[0][0], [(x[0][1], x[1])]))\
-                .reduceByKey(lambda x, y: (x+y))   
-	trdd_table = taxi_aug14.mapPartitionsWithIndex(extractUber)\
-                .reduceByKey(lambda x, y: x+y)\
-                .sortBy(lambda x:(x[0][0], x[0][1]))\
-                .map(lambda x: (dic_boro[x[0][0]], int(datetime.datetime.strptime(x[0][1], "%Y-%m-%d").strftime("%d")),x[1]))
-				
+					.reduceByKey(lambda x, y: x+y)\
+					.map(lambda x: ((x[0][0], datetime.datetime.strptime(x[0][1], "%m/%d/%Y").strftime("%Y-%m-%d")), x[1]))\
+					.sortBy(lambda x:(x[0][0], x[0][1]))\
+					.map(lambda x: (x[0][0], [(x[0][1], x[1])]))\
+					.reduceByKey(lambda x, y: (x+y))             
+
+					
 	uvb = [[],[],[],[],[]]
 	tvb = [[],[],[],[],[]]
 	# evaluate the histogram
@@ -129,11 +133,11 @@ if __name__ == "__main__":
 	uvb[3][0] = np.cumsum(uvb[3][0])
 	uvb[4][0] = np.cumsum(uvb[4][0])
 	
-	sc.parallelize(tvb).rdd.saveAsTextFile('taxi_cumulative_data')
-	sc.parallelize(uvb).rdd.saveAsTextFile('uber_cumulative_data')
+	sc.parallelize(tvb).saveAsTextFile('taxi_cumulative_data')
+	sc.parallelize(uvb).saveAsTextFile('uber_cumulative_data')
 	
 	###############################################################
-    datetimes = list(i for i in range(len(get_data(urdd, i))))
+	datetimes = list(range(len(get_data(urdd, 0))))
 	
 	tdata = []
 	udata = []
@@ -141,8 +145,8 @@ if __name__ == "__main__":
 		if i != 2:
 			tdata.append(get_growth(trdd, i)[1])
 			udata.append(get_growth(urdd, i)[1])
-	sc.parallelize(tdata).rdd.saveAsTextFile('taxi_growth_data')
-	sc.parallelize(udata).rdd.saveAsTextFile('uber_growth_data')
+	sc.parallelize(tdata).saveAsTextFile('taxi_growth_data')
+	sc.parallelize(udata).saveAsTextFile('uber_growth_data')
 			
 	################################################################
 	
@@ -152,4 +156,4 @@ if __name__ == "__main__":
 			x = scipy.array(get_data(trdd, i))
 			y = scipy.array(get_data(urdd, i))
 			prval.append(stats.linregress(x,y))
-	sc.parallelize(prval).rdd.saveAsTextFile('pr_value_data')
+	sc.parallelize(prval).saveAsTextFile('pr_value_data')
