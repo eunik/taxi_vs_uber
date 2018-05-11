@@ -1,17 +1,19 @@
 from pyspark import SparkContext
 from pyspark.sql import SQLContext
 
+import os
 import sys
 import csv
+import urllib2
+import datetime
 import pandas as pd
 import numpy as np
 import scipy
-import datetime
 import matplotlib.dates as mpd
 import matplotlib.pyplot as plt
+sys.path.insert(0, os.path.dirname(__file__))
 import reverse_geocoder as rg
 
-import urllib2
 from scipy import stats
 from sklearn.linear_model import Lasso
 from pyspark.sql import functions as F
