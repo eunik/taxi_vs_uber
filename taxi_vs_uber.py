@@ -11,7 +11,6 @@ import numpy as np
 import scipy
 import matplotlib.dates as mpd
 import matplotlib.pyplot as plt
-sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 import reverse_geocoder as rg
 
 from scipy import stats
