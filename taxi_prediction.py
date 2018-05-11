@@ -59,7 +59,7 @@ def get_data(data, i):
 
 if __name__ == "__main__":
     #sc = SparkContext()
-    taxi_aug14 = sc.textFile('../taxi_aug14_200k.csv' , use_unicode=False).filter(lambda x: x != "").cache()
+    taxi_aug14 = sc.textFile('taxi2014augest.csv' , use_unicode=False).filter(lambda x: x != "").cache()
     #uber_aug14 = sc.textFile('uber-raw-data-aug14.csv', use_unicode=False).cache()
 
     lboro = {0: 'The Bronx', 1: 'Brooklyn', 2: 'Queens', 3: 'Manhattan',  4:'Staten Island'}
