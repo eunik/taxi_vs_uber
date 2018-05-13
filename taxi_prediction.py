@@ -10,7 +10,7 @@ import csv
 from sklearn.linear_model import Lasso
 from sklearn.model_selection import train_test_split
 import urllib2
-import shapefile
+import fiona
 from shapely.geometry import shape, Point
 
 def getlocation(x):
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     lboro = ['Bronx', 'Brooklyn','Manhattan', 'Queens', 'Staten Island']
 	boro_range = [[],[],[],[],[]]
 	for i in range(5):
-		boro_range[i] = shape(boro_shape.shapeRecords()[i].shape.__geo_interface__)
+		boro_range[i] = shape(boro_shape[i]['geometry'])
     columns = ['boro', 'days_in_month', 'number_of_pickup']
     dic_boro = {'Bronx': 0, 'Brooklyn':1, 'Manhattan':2, 'Queens': 3, 'Staten Island': 4}
 
