@@ -29,7 +29,6 @@ def extractTaxi(partId, records):
         (pickup, boro) = (row[1].split(" ")[0], getlocation((row[5],row[6])))
         if boro in lboro:
             yield ((boro, pickup) , 1)
-        continue
 
 
     # gets data given a key
@@ -47,7 +46,7 @@ def get_data(data, i):
     return list(data.values().zipWithIndex().filter(lambda (key,index) : index == i).map(lambda x: zip(*x[0])[1]).collect()[0])
 
 if __name__ == "__main__":
-    #sc = SparkContext()
+    sc = SparkContext()
     taxi_aug14 = sc.textFile('taxi2014augest.csv' , use_unicode=False).filter(lambda x: x != "").cache()
 	boro_shape = shapefile.Reader('nyu_2451_34490.shp')
     #uber_aug14 = sc.textFile('uber-raw-data-aug14.csv', use_unicode=False).cache()
