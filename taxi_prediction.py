@@ -49,7 +49,7 @@ def get_data(data, i):
 if __name__ == "__main__":
     #sc = SparkContext()
     taxi_aug14 = sc.textFile('taxi2014augest.csv' , use_unicode=False).filter(lambda x: x != "").cache()
-	boro_shape = shapefile.Reader('../nyu_2451_34490/nyu_2451_34490.shp')
+	boro_shape = shapefile.Reader('nyu_2451_34490.shp')
     #uber_aug14 = sc.textFile('uber-raw-data-aug14.csv', use_unicode=False).cache()
 
     lboro = ['Bronx', 'Brooklyn','Manhattan', 'Queens', 'Staten Island']
