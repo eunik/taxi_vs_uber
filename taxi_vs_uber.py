@@ -59,7 +59,7 @@ def get_data(data, i):
 	
 ##########################################################################
 def normalize(data):
-    total = float(sum(data))
+    total = float(sum(map(abs,data)))
     if total:
         return [y / total for y in data]
     return data
