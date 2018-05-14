@@ -1,46 +1,34 @@
 from pyspark import SparkContext
 from pyspark.sql import SQLContext
+
+import csv
 import pandas as pd
 import numpy as np
-from geopy.distance import great_circle
-import matplotlib.dates as mpd
-import matplotlib.pyplot as plt
+import scipy
 import datetime
-import csv
+import fiona
+import pyproj
+import matplotlib.pyplot as plt
+from shapely.geometry import shape, Point
+
 from sklearn.linear_model import Lasso
 from sklearn.model_selection import train_test_split
-import reverse_geocoder as rg
-import urllib2
 
 def getlocation(x):
-    point_coord = (float(x[0]) , float(x[1]))
-    this_location = rg.search(point_coord, mode = 1)
-    print(this_location)
-    if ( this_location[0]['admin2'] == 'Queens County'):
-        return 'Queens'
-    else :
-        return this_location[0]['name']
-
+    proj = pyproj.Proj(init="epsg:2263", preserve_units=True)
+    gLoc = Point(proj(float(x[0]) , float(x[1])))
+    for i in range(len(boro_range)):
+        if(gLoc.within(boro_range[i])):
+            return lboro[i]
+			
 def extractTaxi(partId, records):
     if partId==0:
         records.next()
     reader = csv.reader(records)
     for row in reader:
-        (pickup, boro) = (row[1].split(" ")[0], getlocation((row[6],row[5])))
-        if boro in ['The Bronx', 'Brooklyn', 'Queens', 'Manhattan', 'Staten Island']:
+        (pickup, boro) = (row[1].split(" ")[0], getlocation((row[5],row[6])))
+        if boro in lboro:
             yield ((boro, pickup) , 1)
-        continue
-
-def extractUber(partId, records):
-    if partId==0:
-        records.next()
-    import csv
-    reader = csv.reader(records)
-    for row in reader:
-        (pickup, boro) = (row[0].split(" ")[0],  getlocation((row[1],row[2])))
-        if boro in ['The Bronx', 'Brooklyn', 'Queens', 'Manhattan', 'Staten Island']:
-            yield ((boro, pickup) , 1)
-        continue
 
 
     # gets data given a key
@@ -58,13 +46,17 @@ def get_data(data, i):
     return list(data.values().zipWithIndex().filter(lambda (key,index) : index == i).map(lambda x: zip(*x[0])[1]).collect()[0])
 
 if __name__ == "__main__":
-    #sc = SparkContext()
+    sc = SparkContext()
     taxi_aug14 = sc.textFile('taxi2014augest.csv' , use_unicode=False).filter(lambda x: x != "").cache()
+	boro_shape = fiona.open('nyu_2451_34490.shp')
     #uber_aug14 = sc.textFile('uber-raw-data-aug14.csv', use_unicode=False).cache()
 
-    lboro = {0: 'The Bronx', 1: 'Brooklyn', 2: 'Queens', 3: 'Manhattan',  4:'Staten Island'}
+    lboro = ['Bronx', 'Brooklyn','Manhattan', 'Queens', 'Staten Island']
+	boro_range = [[],[],[],[],[]]
+	for i in range(5):
+		boro_range[i] = shape(boro_shape[i]['geometry'])
     columns = ['boro', 'days_in_month', 'number_of_pickup']
-    dic_boro = {'The Bronx': 0, 'Brooklyn':1, 'Queens': 2, 'Manhattan':3, 'Staten Island': 4}
+    dic_boro = {'Bronx': 0, 'Brooklyn':1, 'Manhattan':2, 'Queens': 3, 'Staten Island': 4}
 
 
     # urdd = uber_aug14.mapPartitionsWithIndex(extractUber)\
