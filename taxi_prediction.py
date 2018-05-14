@@ -1,20 +1,20 @@
 from pyspark import SparkContext
 from pyspark.sql import SQLContext
+
+import csv
 import pandas as pd
 import numpy as np
-from geopy.distance import great_circle
-import matplotlib.dates as mpd
-import matplotlib.pyplot as plt
+import scipy
 import datetime
-import csv
-from sklearn.linear_model import Lasso
-from sklearn.model_selection import train_test_split
-import urllib2
 import fiona
+import pyproj
+import matplotlib.pyplot as plt
 from shapely.geometry import shape, Point
 
+from sklearn.linear_model import Lasso
+from sklearn.model_selection import train_test_split
+
 def getlocation(x):
-    import pyproj
     proj = pyproj.Proj(init="epsg:2263", preserve_units=True)
     gLoc = Point(proj(float(x[0]) , float(x[1])))
     for i in range(len(boro_range)):
