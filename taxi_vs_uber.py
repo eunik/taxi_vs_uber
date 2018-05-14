@@ -92,7 +92,7 @@ if __name__ == "__main__":
 	sqlc = SQLContext(sc)
 	taxi_aug14 = sc.textFile('yellow_tripdata_2014-08.csv', use_unicode=False).filter(lambda x: x != "").cache()
 	uber_aug14 = sc.textFile('uber-raw-data-aug14.csv', use_unicode=False).cache()
-	boro_shape = fiona.open('nyu_2451_34490/nyu_2451_34490.shp')
+	boro_shape = fiona.open('nyu_2451_34490.shp')
 	
 	#############################################################################
 	lboro = ['Bronx', 'Brooklyn','Manhattan', 'Queens', 'Staten Island']
